@@ -31,11 +31,13 @@ typedef enum
 	T_ZenithExistsRequest = 0,
 	T_ZenithNblocksRequest,
 	T_ZenithReadRequest,
+	T_ZenithDbSizeRequest,
 
 	/* pagestore -> pagestore_client */
 	T_ZenithStatusResponse = 100,
 	T_ZenithNblocksResponse,
 	T_ZenithReadResponse,
+	T_ZenithDbSizeResponse,
 }			ZenithMessageTag;
 
 
@@ -69,6 +71,7 @@ typedef struct
 	ZenithMessageTag tag;
 	bool		ok;
 	uint32		n_blocks;
+	int64		db_size;
 	char		page[1];
 }			ZenithResponse;
 
@@ -119,6 +122,7 @@ extern void zenith_write(SMgrRelation reln, ForkNumber forknum,
 extern void zenith_writeback(SMgrRelation reln, ForkNumber forknum,
 							 BlockNumber blocknum, BlockNumber nblocks);
 extern BlockNumber zenith_nblocks(SMgrRelation reln, ForkNumber forknum);
+extern int64 zenith_dbsize(Oid dbNode);
 extern void zenith_truncate(SMgrRelation reln, ForkNumber forknum,
 							BlockNumber nblocks);
 extern void zenith_immedsync(SMgrRelation reln, ForkNumber forknum);

@@ -83,6 +83,7 @@ zm_pack(ZenithMessage *msg)
 		case T_ZenithExistsRequest:
 		case T_ZenithNblocksRequest:
 		case T_ZenithReadRequest:
+		case T_ZenithDbSizeRequest:
 		{
 			ZenithRequest *msg_req = (ZenithRequest *) msg;
 
@@ -113,6 +114,13 @@ zm_pack(ZenithMessage *msg)
 			pq_sendbytes(&s, msg_resp->page, BLCKSZ); // XXX: should be varlena
 			break;
 		}
+		case T_ZenithDbSizeResponse:
+		{
+			ZenithResponse *msg_resp = (ZenithResponse *) msg;
+			pq_sendbyte(&s, msg_resp->ok);
+			pq_sendint64(&s, msg_resp->db_size);
+			break;
+		}
 	}
 	return s;
 }
@@ -129,6 +137,7 @@ zm_unpack(StringInfo s)
 		case T_ZenithExistsRequest:
 		case T_ZenithNblocksRequest:
 		case T_ZenithReadRequest:
+		case T_ZenithDbSizeRequest:
 		{
 			ZenithRequest *msg_req = palloc0(sizeof(ZenithRequest));
 
@@ -161,6 +170,18 @@ zm_unpack(StringInfo s)
 			break;
 		}
 
+		case T_ZenithDbSizeResponse:
+		{
+			ZenithResponse *msg_resp = palloc0(sizeof(ZenithResponse));
+
+			msg_resp->tag = tag;
+			msg_resp->ok = pq_getmsgbyte(s);
+			msg_resp->db_size = pq_getmsgint64(s);
+			pq_getmsgend(s);
+
+			msg = (ZenithMessage *) msg_resp;
+			break;
+		}
 		case T_ZenithReadResponse:
 		{
 			ZenithResponse *msg_resp = palloc0(sizeof(ZenithResponse) + BLCKSZ);
@@ -196,6 +217,7 @@ zm_to_string(ZenithMessage *msg)
 		case T_ZenithExistsRequest:
 		case T_ZenithNblocksRequest:
 		case T_ZenithReadRequest:
+		case T_ZenithDbSizeRequest:
 		{
 			ZenithRequest *msg_req = (ZenithRequest *) msg;
 
@@ -219,6 +241,17 @@ zm_to_string(ZenithMessage *msg)
 			appendStringInfo(&s, ", \"ok\": %d, \"n_blocks\": %u}",
 				msg_resp->ok,
 				msg_resp->n_blocks
+			);
+
+			break;
+		}
+		case T_ZenithDbSizeResponse:
+		{
+			ZenithResponse *msg_resp = (ZenithResponse *) msg;
+
+			appendStringInfo(&s, ", \"ok\": %d, \"db_size\": %ld}",
+				msg_resp->ok,
+				msg_resp->db_size
 			);
 
 			break;
@@ -872,6 +905,40 @@ zenith_nblocks(SMgrRelation reln, ForkNumber forknum)
 
 	pfree(resp);
 	return n_blocks;
+}
+
+/*
+ *	zenith_db_size() -- Get the size of the database in bytes.
+ */
+int64
+zenith_dbsize(Oid dbNode)
+{
+	ZenithResponse *resp;
+	int64 db_size;
+	XLogRecPtr request_lsn;
+
+	request_lsn = zenith_get_request_lsn(false);
+	resp = page_server->request((ZenithRequest) {
+		.tag = T_ZenithDbSizeRequest,
+		.page_key = {
+			.rnode = {
+				.spcNode = DEFAULTTABLESPACE_OID, // TODO handle global?
+				.dbNode = dbNode,
+				.relNode = 0, //unused field
+			},
+			.forknum = 0, //unused field
+		},
+		.lsn = request_lsn
+	});
+	db_size = resp->db_size;
+
+	elog(SmgrTrace, "zenith_dbsize: db %u (request LSN %X/%08X): %ld bytes",
+		 dbNode,
+		 (uint32) (request_lsn >> 32), (uint32) request_lsn,
+		 db_size);
+
+	pfree(resp);
+	return db_size;
 }
 
 /*

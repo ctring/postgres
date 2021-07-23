@@ -77,6 +77,8 @@ db_dir_size(const char *path)
 	return dirsize;
 }
 
+dbsize_hook_type dbsize_hook = NULL;
+
 /*
  * calculate size of database in all tablespaces
  */
@@ -106,26 +108,34 @@ calculate_database_size(Oid dbOid)
 
 	/* Include pg_default storage */
 	snprintf(pathname, sizeof(pathname), "base/%u", dbOid);
-	totalsize = db_dir_size(pathname);
 
-	/* Scan the non-default tablespaces */
-	snprintf(dirpath, MAXPGPATH, "pg_tblspc");
-	dirdesc = AllocateDir(dirpath);
-
-	while ((direntry = ReadDir(dirdesc, dirpath)) != NULL)
+	if (dbsize_hook)
 	{
-		CHECK_FOR_INTERRUPTS();
-
-		if (strcmp(direntry->d_name, ".") == 0 ||
-			strcmp(direntry->d_name, "..") == 0)
-			continue;
-
-		snprintf(pathname, sizeof(pathname), "pg_tblspc/%s/%s/%u",
-				 direntry->d_name, TABLESPACE_VERSION_DIRECTORY, dbOid);
-		totalsize += db_dir_size(pathname);
+		totalsize = (*dbsize_hook)(dbOid);
 	}
+	else
+	{
+		totalsize = db_dir_size(pathname);
 
-	FreeDir(dirdesc);
+		/* Scan the non-default tablespaces */
+		snprintf(dirpath, MAXPGPATH, "pg_tblspc");
+		dirdesc = AllocateDir(dirpath);
+
+		while ((direntry = ReadDir(dirdesc, dirpath)) != NULL)
+		{
+			CHECK_FOR_INTERRUPTS();
+
+			if (strcmp(direntry->d_name, ".") == 0 ||
+				strcmp(direntry->d_name, "..") == 0)
+				continue;
+
+			snprintf(pathname, sizeof(pathname), "pg_tblspc/%s/%s/%u",
+					direntry->d_name, TABLESPACE_VERSION_DIRECTORY, dbOid);
+			totalsize += db_dir_size(pathname);
+		}
+
+		FreeDir(dirdesc);
+		}
 
 	return totalsize;
 }
