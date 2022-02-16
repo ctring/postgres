@@ -614,6 +614,14 @@ ApplyRecord(StringInfo input_message)
 	reader_state.decoded_record = record;
 	reader_state.errormsg_buf = palloc(1000 + 1); /* MAX_ERRORMSG_LEN */
 
+	/*
+	 * Validate CRC of the WAL record, because DecodeXLogRecord() doesn not
+	 * check it. It is only validated in the XLogReadRecord(), which we do
+	 * not use.
+	 */
+	if (!ValidXLogRecord(&reader_state, record, reader_state.EndRecPtr))
+		elog(ERROR, "failed to verify WAL record checksum: %s", reader_state.errormsg_buf);
+
 	if (!DecodeXLogRecord(&reader_state, record, &errormsg))
 		elog(ERROR, "failed to decode WAL record: %s", errormsg);
 

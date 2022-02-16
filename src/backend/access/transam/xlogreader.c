@@ -41,8 +41,6 @@ static int	ReadPageInternal(XLogReaderState *state, XLogRecPtr pageptr,
 static void XLogReaderInvalReadState(XLogReaderState *state);
 static bool ValidXLogRecordHeader(XLogReaderState *state, XLogRecPtr RecPtr,
 								  XLogRecPtr PrevRecPtr, XLogRecord *record, bool randAccess);
-static bool ValidXLogRecord(XLogReaderState *state, XLogRecord *record,
-							XLogRecPtr recptr);
 static void ResetDecoder(XLogReaderState *state);
 static void WALOpenSegmentInit(WALOpenSegment *seg, WALSegmentContext *segcxt,
 							   int segsize, const char *waldir);
@@ -788,7 +786,7 @@ ValidXLogRecordHeader(XLogReaderState *state, XLogRecPtr RecPtr,
  * record's header, which means in particular that xl_tot_len is at least
  * SizeOfXLogRecord.
  */
-static bool
+bool
 ValidXLogRecord(XLogReaderState *state, XLogRecord *record, XLogRecPtr recptr)
 {
 	pg_crc32c	crc;

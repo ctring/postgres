@@ -284,6 +284,10 @@ extern XLogRecPtr XLogFindNextRecord(XLogReaderState *state, XLogRecPtr RecPtr);
 extern struct XLogRecord *XLogReadRecord(XLogReaderState *state,
 										 char **errormsg);
 
+/* Validate the record CRC */
+extern bool ValidXLogRecord(XLogReaderState *state, XLogRecord *record,
+							XLogRecPtr recptr);
+
 /* Validate a page */
 extern bool XLogReaderValidatePageHeader(XLogReaderState *state,
 										 XLogRecPtr recptr, char *phdr);
