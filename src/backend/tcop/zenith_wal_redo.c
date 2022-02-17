@@ -569,6 +569,21 @@ PushPage(StringInfo input_message)
 	blknum = pq_getmsgint(input_message, 4);
 	content = pq_getmsgbytes(input_message, BLCKSZ);
 
+	/*
+	 * Every backend on the compute side will verify the page checksum
+	 * after reading it from pageserver using GetPage@LSN. Here in the
+	 * WAL redo process we are reading pages directly from stdin, so we
+	 * would better verify checksum too before applying any WAL records
+	 * on top of it.
+	 */
+	if (!PageIsVerifiedExtended((Page) content, blknum,
+								PIV_LOG_WARNING | PIV_REPORT_STAT))
+		ereport(ERROR,
+				(errcode(ERRCODE_DATA_CORRUPTED),
+					errmsg("invalid page in block %u of relation %s",
+						   blknum,
+						   relpathperm(rnode, forknum))));
+
 	buf = ReadBufferWithoutRelcache(rnode, forknum, blknum, RBM_ZERO_AND_LOCK, NULL);
 	page = BufferGetPage(buf);
 	memcpy(page, content, BLCKSZ);
