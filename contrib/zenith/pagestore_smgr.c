@@ -388,6 +388,7 @@ PageIsEmptyHeapPage(char *buffer)
 	PGAlignedBlock empty_page;
 
 	PageInit((Page) empty_page.data, BLCKSZ, 0);
+	((PageHeader)empty_page.data)->pd_checksum = ((PageHeader)buffer)->pd_checksum;
 
 	return memcmp(buffer, empty_page.data, BLCKSZ) == 0;
 }
